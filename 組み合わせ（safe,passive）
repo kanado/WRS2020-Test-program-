@@ -1,0 +1,168 @@
+#include <SoftwareSerial.h>
+int rxPin = 10;//rxのピン番号
+int txPin = 11;//txのピン番号
+int ddPin = 5; //参考[1]のBRC
+SoftwareSerial Roomba(rxPin, txPin);
+
+int INPUT_passive = 4;  // タクトスイッチからの入力を4ピンに割り当て
+int passive;
+int INPUT_safe = 3;  // タクトスイッチからの入力を3ピンに割り当て
+int safe;
+
+const int pingPinA = 9;
+const int pingPinB = 8;
+unsigned long durationA;
+int cm;
+unsigned long durationB;
+int cm1;
+
+
+void wakeUp(void) {
+  //起動
+  digitalWrite(ddPin, HIGH);
+  delay(100);
+  digitalWrite(ddPin, LOW);
+  delay(500);
+  digitalWrite(ddPin, HIGH);
+  delay(2000);
+}
+
+void startSafe() { //startmodeに移行
+  Roomba.write(128); //start
+  Roomba.write(131); //safe mode
+  delay(100);//とりあえず入れる
+  Serial.begin(9600);
+  Serial.println("startsafe");
+}
+
+void startPassive() { //passivemodeに移行
+  Roomba.write(128); //start
+  delay(100);
+}
+
+unsigned int hex_convert_to8_high(int a) {
+  return (unsigned int)(a >> 8) & 0x00FF;
+};
+
+unsigned int hex_convert_to8_low(int a) {
+  return a ^ (hex_convert_to8_high(a) << 8);
+};
+
+unsigned int hex_convert_to16(int a, int b) {
+  return (unsigned int)(a << 8) | (int)(b);
+};
+
+void roomba_send_num(int num) { //numを二つの8bitに変換してルンバに送信
+  Roomba.write(hex_convert_to8_high(num));
+  Roomba.write(hex_convert_to8_low(num));
+
+};
+
+void roomba_drive(int right, int left) { //直進　左と右のタイヤの速度が引数
+  Roomba.write(145);
+  roomba_send_num(right); //Velocity right
+  roomba_send_num(left); //Velocity left
+  Serial.println("直進");
+  delay(100);
+  delay(10);
+};
+
+void ultrasound1() {
+  //pingPin
+  //ピンをOUTPUTに設定（パルス送信のため）
+  pinMode(pingPinA, OUTPUT);
+  //LOWパルスを送信
+  digitalWrite(pingPinA, LOW);
+  delayMicroseconds(2);
+  //HIGHパルスを送信
+  digitalWrite(pingPinA, HIGH);
+  //5uSパルスを送信してPingSensorを起動
+  delayMicroseconds(5);
+  digitalWrite(pingPinA, LOW);
+
+  //入力パルスを読み取るためにデジタルピンをINPUTに変更（シグナルピンを入力に切り替え）
+  pinMode(pingPinA, INPUT);
+
+  //入力パルスの長さを測定
+  durationA = pulseIn(pingPinA, HIGH);
+
+  //パルスの長さを半分に分割
+  durationA = durationA / 2;
+  //cmに変換
+  cm = int(durationA / 29);
+  Serial.println("");
+  Serial.println("前方");
+  Serial.print(cm);
+  Serial.println("cm");
+};
+
+void ultrasound2() {
+  //pingPin
+  //ピンをOUTPUTに設定（パルス送信のため）
+  pinMode(pingPinB, OUTPUT);
+  //LOWパルスを送信
+  digitalWrite(pingPinB, LOW);
+  delayMicroseconds(2);
+  //HIGHパルスを送信
+  digitalWrite(pingPinB, HIGH);
+  //5uSパルスを送信してPingSensorを起動
+  delayMicroseconds(5);
+  digitalWrite(pingPinB, LOW);
+
+  //入力パルスを読み取るためにデジタルピンをINPUTに変更（シグナルピンを入力に切り替え）
+  pinMode(pingPinB, INPUT);
+
+  //入力パルスの長さを測定
+  durationB = pulseIn(pingPinB, HIGH);
+
+  //パルスの長さを半分に分割
+  durationB = durationB / 2;
+  //cmに変換
+  cm1 = int(durationB / 29);
+  Serial.println("");
+  Serial.println("左");
+  Serial.print(cm1);
+  Serial.println("cm");
+};
+
+
+void setup() {
+  pinMode(INPUT_passive, INPUT_PULLUP);  // タクトスイッチに繋いだピンを入力に設定
+  pinMode(INPUT_safe, INPUT_PULLUP);  // タクトスイッチに繋いだピンを入力に設定
+  Roomba.begin(115200);
+  Roomba.write(5);//9600に変更
+  Roomba.end();//一度きる
+  Roomba.begin(9600);//19200でスタート
+  Serial.println("roomba 9600 start");
+  wakeUp(); //wake up Roomba
+  startPassive();
+  startSafe(); // start roomba in safe mode
+
+}
+
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  ultrasound1();
+  delay(1);
+  ultrasound2();
+  delay(1);
+  passive = digitalRead(INPUT_passive);  // 入力ピン(タクトスイッチ)の状態を読み取る
+  safe = digitalRead(INPUT_safe);  // 入力ピン(タクトスイッチ)の状態を読み取る
+  if (passive == 0) {
+    startPassive();
+  }
+  else if(safe == 0){
+    startSafe();
+  }
+  
+  else if(cm < 10 ) {
+    roomba_drive(0, 0);
+  }
+
+  else {
+    roomba_drive(100, 100);
+
+  }
+
+}

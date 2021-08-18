@@ -9,6 +9,7 @@
 * Arduino UNO
 * iRobot Create 2
 * Parallax社製３極超音波距離センサー（㈱ダイセン電子工業にて購入）
+* BNO055
 
 # 著作権
 kanadoに帰属します。
